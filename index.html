@@ -239,6 +239,8 @@ const CONFIG = {
   BOUNDS: { minLat: 32.5, maxLat: 33.4, minLng: -97.7, maxLng: -96.5 }
 };
 
+// Stamped automatically on every commit (see .git/hooks/pre-commit). Used to notice a newer version.
+const APP_VERSION = "2026-11-21T20:46:22Z";
 const ANIMALS = ["Squirrel", "Opossum", "Raccoon", "Rabbit", "Armadillo", "Skunk", "Bird", "Turtle", "Snake", "Cat", "Other"];
 const CELL_LAT = 0.0008, CELL_LNG = 0.00095;   // hotspot grid, about 90 m squares
 const TABLE = "sightings";
@@ -623,6 +625,24 @@ function openAtUser() {
   }, () => {}, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
 }
 
+/* ---------- stay up to date ---------- */
+// GitHub Pages tells browsers to reuse a saved copy for 10 minutes, so a normal refresh can show an old page.
+// Ask for the newest copy (skipping every cache) and switch to it if it's newer.
+async function checkForUpdate() {
+  try {
+    const r = await fetch(location.pathname + "?check=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return;
+    const m = (await r.text()).match(/^const APP_VERSION = "([^"]+)";/m);
+    if (!m || m[1] === APP_VERSION || mode !== "idle") return;   // never interrupt someone adding a report
+    let tried = null; try { tried = sessionStorage.getItem("rk_update_to"); } catch (e) {}
+    if (tried === m[1]) return;   // already tried this version once in this tab: don't loop
+    try { sessionStorage.setItem("rk_update_to", m[1]); } catch (e) {}
+    location.replace(location.pathname + "?v=" + encodeURIComponent(m[1]) + location.hash);
+  } catch (e) { /* offline: keep the page as it is */ }
+}
+if (/[?&]v=/.test(location.search)) history.replaceState(null, "", location.pathname + location.hash);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate(); });
+
 /* ---------- start ---------- */
 ANIMALS.forEach((a, i) => {
   const l = document.createElement("label");
@@ -637,6 +657,7 @@ if (!REMOTE) {
 (async () => {
   openAtUser();
   maybeShowWhyBanner();
+  checkForUpdate();
   deviceHash = await sha256hex(deviceKey);
   await refresh();
   if (REMOTE) {
