@@ -45,6 +45,17 @@
   #map { position: absolute; inset: 0; }
 
   .basetoggle { background: #fff; background-clip: padding-box; border: 2px solid rgba(0,0,0,.2); border-radius: 6px; padding: 7px 10px; font-size: 13px; font-weight: 650; color: var(--ink); }
+  .whylink { background: transparent; border: 1px solid rgba(255,255,255,.4); color: #fff; border-radius: 999px; padding: 2px 10px; font-size: 12.5px; margin-left: 8px; vertical-align: 2px; }
+  #whyBanner { position: absolute; top: 10px; left: 10px; width: calc(100% - 68px); z-index: 650; display: flex; align-items: center; gap: 10px;
+    background: var(--ink); color: #fff; border: 0; border-radius: 12px; padding: 10px 12px; font-size: 13.5px; line-height: 1.3; text-align: left;
+    box-shadow: 0 3px 12px rgba(0,0,0,.3); opacity: 0; transform: translateY(-10px); transition: opacity .35s, transform .35s; }
+  #whyBanner.show { opacity: 1; transform: none; }
+  #whyBanner b { margin-left: auto; white-space: nowrap; color: #9fe0c4; }
+  .why { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+  .why li { position: relative; padding: 0 0 12px 38px; font-size: 15px; line-height: 1.4; counter-increment: step; }
+  .why li::before { content: counter(step); position: absolute; left: 0; top: -1px; width: 26px; height: 26px; border-radius: 50%; background: var(--go); color: #fff; font-weight: 700; font-size: 14px; display: grid; place-items: center; }
+  .fixes { margin: 4px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.45; color: var(--ink); }
+  .fixes li { margin-bottom: 4px; }
   .legend { position: absolute; left: 10px; bottom: 24px; z-index: 500; background: rgba(255,255,255,.92); border-radius: 8px; padding: 6px 9px; font-size: 12px; display: flex; gap: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
 
@@ -96,7 +107,7 @@
 
 <header>
   <div class="title-row">
-    <h1>Roadkill Map</h1>
+    <div><h1 style="display:inline">Roadkill Map</h1><button type="button" class="whylink" id="whyLink">Why?</button></div>
     <div id="summary">Loading…</div>
   </div>
   <div class="controls">
@@ -154,6 +165,32 @@
     <div class="row">
       <button type="button" class="btn alt" id="csvBtn">Download CSV</button>
       <button type="button" class="btn" id="statsClose">Close</button>
+    </div>
+  </div>
+
+  <!-- Short "why it matters" banner: slides in, fades away by itself -->
+  <button type="button" id="whyBanner" hidden>
+    <span>Every pin helps us find the worst spots and get them fixed.</span><b>Why? ›</b>
+  </button>
+
+  <!-- Why this map -->
+  <div class="sheet" id="whySheet">
+    <h2>Why this map?</h2>
+    <ol class="why">
+      <li><b>Pin it.</b> When you see a dead animal on the road, drop a pin right where it is.</li>
+      <li><b>Find the hotspots.</b> Most deaths happen at just 2 or 3 spots. The map shows us where.</li>
+      <li><b>Fix those spots.</b> We take the map to our HOA and the cities of Southlake and Grapevine, and ask for fixes like:
+        <ul class="fixes">
+          <li>Small tunnels under the road, with low fences that guide animals into them</li>
+          <li>Roadside posts that flash and beep when headlights come, so animals wait</li>
+          <li>Slower traffic: speed humps and lower limits</li>
+        </ul>
+      </li>
+    </ol>
+    <div class="spot">No sign-up. Pins don't show who added them.</div>
+    <div class="row">
+      <button type="button" class="btn alt" id="whyClose">Close</button>
+      <button type="button" class="btn" id="whyReport">Report an animal</button>
     </div>
   </div>
 
@@ -414,7 +451,7 @@ async function refresh(quiet) {
 }
 
 /* ---------- reporting flow ---------- */
-function setMode(m) {   // idle | placing | form | stats | sv
+function setMode(m) {   // idle | placing | form | stats | sv | why
   mode = m;
   $("footIdle").style.display = mode === "idle" ? "flex" : "none";
   $("footPlace").style.display = mode === "placing" ? "flex" : "none";
@@ -423,6 +460,8 @@ function setMode(m) {   // idle | placing | form | stats | sv
   $("formSheet").style.display = mode === "form" ? "block" : "none";
   $("statsSheet").style.display = mode === "stats" ? "block" : "none";
   $("svSheet").style.display = mode === "sv" ? "block" : "none";
+  $("whySheet").style.display = mode === "why" ? "block" : "none";
+  if (m !== "idle") hideWhyBanner();
   if (m !== "sv") $("svFrame").removeAttribute("src");   // stop the panorama when the sheet closes
   if (m !== "placing") gpsLayer.clearLayers();
   if (m !== "form") pendingLayer.clearLayers();
@@ -502,6 +541,30 @@ $("openStats").onclick = () => {
 };
 $("statsClose").onclick = () => setMode("idle");
 
+/* ---------- "Why this map?" banner + card ---------- */
+// The banner shows on a person's first 3 visits (or until they open the card), then only the Why? button remains.
+function hideWhyBanner() {
+  const b = $("whyBanner"); if (b.hidden) return;
+  b.classList.remove("show"); setTimeout(() => { b.hidden = true; }, 400);
+}
+function maybeShowWhyBanner() {
+  const shown = +(lsGet("rk_why_shown") || 0);
+  if (lsGet("rk_why_opened") || shown >= 3) return;
+  setTimeout(() => {
+    if (mode !== "idle") return;
+    lsSet("rk_why_shown", String(shown + 1));
+    const b = $("whyBanner"); b.hidden = false;
+    void b.offsetWidth;   // apply the hidden state first so the slide-in animates
+    b.classList.add("show");
+    setTimeout(hideWhyBanner, 9000);
+  }, 1200);
+}
+function openWhy() { lsSet("rk_why_opened", "1"); setMode("why"); }
+$("whyBanner").onclick = openWhy;
+$("whyLink").onclick = openWhy;
+$("whyClose").onclick = () => setMode("idle");
+$("whyReport").onclick = () => { setMode("idle"); $("reportBtn").click(); };
+
 /* ---------- Google Street View ---------- */
 // The free Maps Embed API shows it inside the app; with no key, open Google Maps (also free, no key).
 let svBackTo = "idle", svAt = null;
@@ -572,6 +635,7 @@ if (!REMOTE) {
 }
 (async () => {
   openAtUser();
+  maybeShowWhyBanner();
   deviceHash = await sha256hex(deviceKey);
   await refresh();
   if (REMOTE) {

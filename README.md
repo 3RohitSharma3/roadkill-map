@@ -13,6 +13,7 @@ A phone-friendly web app where neighbors drop a pin on the exact spot they find 
 - **Hotspots view**: reports grouped into blocks of about 90 m, with a count on each
 - **Top spots**: the five worst locations, plus a CSV download to send to the city
 - **Street View** button on every pin and in Top spots: Google's drive-by photos of that exact spot. Without a Google key it opens Google Maps; with a free key it opens inside the app (see below)
+- **Why this map?**: a short banner slides in on a visitor's first 3 visits and fades after 9 seconds; tapping it (or the Why? button by the title) opens a 3-step card: pin it, find the hotspots, fix those spots with the city and HOA
 - Each phone can remove its own pins (tap the pin, then tap Remove twice)
 - Nobody can tell which pins came from the same phone
 
