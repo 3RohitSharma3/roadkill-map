@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#16302b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Roadkill Map: Southlake &amp; Grapevine</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --ink: #16302b;        /* deep green: bars, text */
+    --paper: #f6f4ee;      /* sheets and panels */
+    --line: #d9d5c8;
+    --muted: #5d6b66;
+    --day: #e08a00;        /* pin seen in daylight */
+    --night: #3b3fa6;      /* pin seen after dark */
+    --hot: #c8321e;        /* hotspot circles */
+    --go: #1f7a5a;         /* primary action */
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    /* layout: full-screen map, slim top bar, one big button at the bottom, sheets slide up */
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: var(--font); color: var(--ink); background: var(--paper); display: flex; flex-direction: column; overflow: hidden; }
+  button, select, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid #7fd0b3; outline-offset: 2px; }
+
+  header { background: var(--ink); color: #fff; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  h1 { font-size: 17px; margin: 0; letter-spacing: .01em; }
+  #summary { font-size: 12.5px; opacity: .85; font-variant-numeric: tabular-nums; text-align: right; }
+  .controls { display: flex; gap: 8px; align-items: center; }
+  .seg { display: flex; border: 1px solid rgba(255,255,255,.35); border-radius: 8px; overflow: hidden; }
+  .seg button { background: transparent; color: #fff; border: 0; padding: 7px 12px; font-size: 13.5px; }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--ink); font-weight: 600; }
+  header select { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.35); border-radius: 8px; padding: 7px 8px; font-size: 13.5px; }
+  header select option { color: #000; }
+  .ghost { margin-left: auto; background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.35); border-radius: 8px; padding: 7px 12px; font-size: 13.5px; }
+
+  #banner { display: none; background: #fff3c9; border-bottom: 1px solid #e6d48a; padding: 7px 14px; font-size: 12.5px; }
+
+  #mapwrap { position: relative; flex: 1; min-height: 0; }
+  #map { position: absolute; inset: 0; }
+
+  .basetoggle { background: #fff; background-clip: padding-box; border: 2px solid rgba(0,0,0,.2); border-radius: 6px; padding: 7px 10px; font-size: 13px; font-weight: 650; color: var(--ink); }
+  .legend { position: absolute; left: 10px; bottom: 24px; z-index: 500; background: rgba(255,255,255,.92); border-radius: 8px; padding: 6px 9px; font-size: 12px; display: flex; gap: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+
+  /* Fixed pin shown at the centre of the map while placing */
+  #crosshair { display: none; position: absolute; left: 50%; top: 50%; z-index: 600; pointer-events: none; transform: translate(-50%, -100%); }
+  #crosshair svg { display: block; filter: drop-shadow(0 2px 2px rgba(0,0,0,.4)); }
+  #placehint { display: none; position: absolute; top: 10px; left: 10px; right: 58px; z-index: 600; background: var(--ink); color: #fff; border-radius: 10px; padding: 9px 12px; font-size: 14px; text-align: center; }
+
+  footer { background: var(--paper); border-top: 1px solid var(--line); padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); display: flex; gap: 8px; }
+  .btn { flex: 1; border: 0; border-radius: 12px; padding: 14px 12px; font-size: 16px; font-weight: 650; background: var(--go); color: #fff; }
+  .btn.alt { background: #fff; color: var(--ink); border: 1px solid var(--line); font-weight: 550; flex: 0 1 auto; }
+  .btn:disabled { opacity: .55; }
+
+  .sheet { display: none; position: absolute; left: 0; right: 0; bottom: 0; z-index: 1000; background: var(--paper); border-radius: 16px 16px 0 0; box-shadow: 0 -6px 24px rgba(0,0,0,.28); padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); max-height: 82%; overflow-y: auto; }
+  .sheet h2 { font-size: 17px; margin: 0 0 12px; }
+  .sheet label, .sheet legend { font-size: 13px; font-weight: 600; color: var(--muted); display: block; margin: 12px 0 6px; padding: 0; }
+  fieldset { border: 0; margin: 0; padding: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chips label { margin: 0; font-weight: 500; color: var(--ink); }
+  .chips input { position: absolute; opacity: 0; }
+  .chips span { display: block; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 13px; font-size: 14.5px; }
+  .chips input:checked + span { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .chips input:focus-visible + span { outline: 3px solid #7fd0b3; outline-offset: 2px; }
+  .sheet input[type="datetime-local"], .sheet textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: #fff; font-size: 16px; }
+  .sheet textarea { resize: none; height: 62px; }
+  .row { display: flex; gap: 8px; margin-top: 16px; }
+  .spot { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  #hotlist { list-style: none; margin: 0; padding: 0; }
+  #hotlist li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  #hotlist .n { min-width: 34px; height: 34px; border-radius: 50%; background: var(--hot); color: #fff; font-weight: 700; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+  #hotlist .what { flex: 1; font-size: 14px; }
+  #hotlist .what small { display: block; color: var(--muted); }
+  #hotlist button { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 7px 11px; font-size: 13.5px; }
+
+  .hotlabel { color: #fff; font-weight: 700; font-size: 13px; text-align: center; line-height: 26px; text-shadow: 0 1px 2px rgba(0,0,0,.5); font-variant-numeric: tabular-nums; }
+  .pop b { font-size: 15px; }
+  .pop div { margin-top: 3px; font-size: 13px; }
+  .pop button { margin-top: 8px; border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 6px 10px; font-size: 13px; color: var(--hot); }
+
+  #toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 2000; background: rgba(22,48,43,.95); color: #fff; padding: 10px 14px; border-radius: 10px; font-size: 14px; max-width: 86%; text-align: center; display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-row">
+    <h1>Roadkill Map</h1>
+    <div id="summary">Loading…</div>
+  </div>
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Map view">
+      <button id="viewPins" aria-pressed="true">Pins</button>
+      <button id="viewHot" aria-pressed="false">Hotspots</button>
+    </div>
+    <select id="range" aria-label="Time range">
+      <option value="30">Last 30 days</option>
+      <option value="90" selected>Last 90 days</option>
+      <option value="365">Last year</option>
+      <option value="0">All time</option>
+    </select>
+    <button class="ghost" id="openStats">Top spots</button>
+  </div>
+</header>
+
+<div id="banner"></div>
+
+<div id="mapwrap">
+  <div id="map"></div>
+  <div class="legend" id="legend">
+    <span><i class="dot" style="background:var(--day)"></i>Day</span>
+    <span><i class="dot" style="background:var(--night)"></i>Night</span>
+    <span id="legendYou" hidden><i class="dot" style="background:var(--go);box-shadow:0 0 0 3px rgba(31,122,90,.3)"></i>You</span>
+  </div>
+  <div id="placehint">Move the map until the pin sits on the exact spot</div>
+  <div id="crosshair" aria-hidden="true">
+    <svg width="34" height="46" viewBox="0 0 34 46"><path d="M17 45C17 45 2 27 2 16.5a15 15 0 0 1 30 0C32 27 17 45 17 45z" fill="#c8321e" stroke="#fff" stroke-width="2.5"/><circle cx="17" cy="16.5" r="5.5" fill="#fff"/></svg>
+  </div>
+
+  <!-- Report form -->
+  <form class="sheet" id="formSheet" autocomplete="off">
+    <h2>What did you find?</h2>
+    <div class="spot" id="spotText"></div>
+    <fieldset>
+      <legend>Animal</legend>
+      <div class="chips" id="animalChips"></div>
+    </fieldset>
+    <label for="seenAt">When did you see it?</label>
+    <input type="datetime-local" id="seenAt" required>
+    <label for="note">Note (optional)</label>
+    <textarea id="note" maxlength="200" placeholder="e.g. right at the curve, eastbound lane"></textarea>
+    <div class="row">
+      <button type="button" class="btn alt" id="formBack">Back</button>
+      <button type="submit" class="btn" id="saveBtn">Save report</button>
+    </div>
+  </form>
+
+  <!-- Top spots -->
+  <div class="sheet" id="statsSheet">
+    <h2>Worst spots</h2>
+    <div class="spot" id="statsNote"></div>
+    <ul id="hotlist"></ul>
+    <div class="row">
+      <button type="button" class="btn alt" id="csvBtn">Download CSV</button>
+      <button type="button" class="btn" id="statsClose">Close</button>
+    </div>
+  </div>
+
+  <div id="toast" role="status"></div>
+</div>
+
+<footer id="footIdle">
+  <button class="btn" id="reportBtn">Report an animal</button>
+</footer>
+<footer id="footPlace" style="display:none">
+  <button class="btn alt" id="cancelPlace">Cancel</button>
+  <button class="btn alt" id="gpsBtn">Use my location</button>
+  <button class="btn" id="confirmPlace">Pin here</button>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* ============================================================
+   SETUP: paste your two Supabase values here (see README.md).
+   Left blank, the app still works but saves on this phone only.
+   ============================================================ */
+const CONFIG = {
+  SUPABASE_URL: "https://nshwzbfshsftuphxlcuz.supabase.co",   // e.g. "https://abcdxyz.supabase.co"
+  SUPABASE_KEY: "sb_publishable_Ml3kffdWFaCCsQ8E4u1K7w_sC-UCB57",   // the public "publishable" (or "anon") key, never the secret one
+  // The map opens on the user's own location when they allow it and are inside BOUNDS.
+  // Otherwise it opens here: Kimball Ave & Dove Rd, street level.
+  HOME: [32.9606, -97.1166],
+  HOME_ZOOM: 16,
+  USER_ZOOM: 17,
+  // Reports outside this box are rejected (roughly the DFW area). Widen as you expand.
+  BOUNDS: { minLat: 32.5, maxLat: 33.4, minLng: -97.7, maxLng: -96.5 }
+};
+
+const ANIMALS = ["Squirrel", "Opossum", "Raccoon", "Rabbit", "Armadillo", "Skunk", "Bird", "Turtle", "Snake", "Cat", "Other"];
+const CELL_LAT = 0.0008, CELL_LNG = 0.00095;   // hotspot grid, about 90 m squares
+const TABLE = "sightings";
+const REMOTE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_KEY);
+
+/* ---------- small helpers ---------- */
+const $ = id => document.getElementById(id);
+function toast(msg, ms) {
+  const t = $("toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.style.display = "none", ms || 3200);
+}
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function uuid() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  const b = new Uint8Array(16); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(b) : b.forEach((_, i) => b[i] = Math.random() * 256);
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+}
+async function sha256hex(s) {
+  if (!(window.crypto && crypto.subtle)) return null;
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, "0")).join("");
+}
+// Night = 7 pm to 6 am in Texas time, so every viewer sees the same counts.
+const TZ = "America/Chicago";
+const HOUR_FMT = new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", hourCycle: "h23" });
+const CSV_TIME = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+function isNight(p) { const h = +HOUR_FMT.format(new Date(p.seen_at)) % 24; return h < 6 || h >= 19; }
+function fmtWhen(iso) {
+  return new Date(iso).toLocaleString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+function localInputValue(d) {
+  const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return z.toISOString().slice(0, 16);
+}
+function inBounds(lat, lng) {
+  const b = CONFIG.BOUNDS;
+  return lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng;
+}
+
+/* ---------- this phone's private key: lets you remove your own pins ---------- */
+let deviceKey = lsGet("rk_device_key");
+if (!deviceKey) { deviceKey = uuid(); lsSet("rk_device_key", deviceKey); }
+let deviceHash = null;
+// Ids of pins this phone added. The shared table never reveals which phone added which pin.
+const mine = new Set((() => { try { return JSON.parse(lsGet("rk_mine") || "[]"); } catch (e) { return []; } })());
+function saveMine() { lsSet("rk_mine", JSON.stringify([...mine])); }
+
+/* ---------- storage: Supabase when configured, this phone otherwise ---------- */
+function headers(extra) {
+  const h = Object.assign({ apikey: CONFIG.SUPABASE_KEY, "Content-Type": "application/json" }, extra || {});
+  if (CONFIG.SUPABASE_KEY.startsWith("eyJ")) h.Authorization = "Bearer " + CONFIG.SUPABASE_KEY;  // older JWT-style keys
+  return h;
+}
+const base = () => CONFIG.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/";
+// fetch with a plain-words message when the phone has no connection (browsers say "Failed to fetch" / "Load failed").
+async function call(url, opts) {
+  try { return await fetch(url, opts); }
+  catch (e) { throw new Error("No connection to the shared map"); }
+}
+const COLS = "id,lat,lng,animal,seen_at,note";
+const PAGE = 1000;   // Supabase returns at most 1000 rows per request
+const remoteStore = {
+  async list() {
+    const all = [];
+    for (let off = 0; ; off += PAGE) {
+      const r = await call(base() + TABLE + "?select=" + COLS + "&order=seen_at.desc,id.asc&limit=" + PAGE + "&offset=" + off, { headers: headers() });
+      if (!r.ok) throw new Error("Could not load reports (" + r.status + ")");
+      const rows = await r.json();
+      all.push(...rows);
+      if (rows.length < PAGE) return all;
+    }
+  },
+  async add(rec) {
+    const r = await call(base() + TABLE + "?select=" + COLS, { method: "POST", headers: headers({ Prefer: "return=representation" }), body: JSON.stringify(rec) });
+    if (!r.ok) throw new Error("Could not save (" + r.status + ")");
+    const row = (await r.json())[0];
+    if (rec.device_hash) { mine.add(row.id); saveMine(); }
+    return row;
+  },
+  async remove(id) {
+    const r = await call(base() + "rpc/delete_sighting", { method: "POST", headers: headers(), body: JSON.stringify({ p_id: id, p_key: deviceKey }) });
+    if (!r.ok) throw new Error("Could not remove (" + r.status + ")");
+    if ((await r.json()) !== true) throw new Error("Only the phone that added a pin can remove it");
+    mine.delete(id); saveMine();
+  }
+};
+const localStore = {
+  _all() { try { return JSON.parse(lsGet("rk_local") || "[]"); } catch (e) { return []; } },
+  async list() { return this._all(); },
+  async add(rec) { const all = this._all(); const row = Object.assign({ id: uuid() }, rec); all.unshift(row); lsSet("rk_local", JSON.stringify(all)); return row; },
+  async remove(id) { lsSet("rk_local", JSON.stringify(this._all().filter(p => p.id !== id))); }
+};
+const store = REMOTE ? remoteStore : localStore;
+
+/* ---------- map ---------- */
+const map = L.map("map", { zoomControl: false, maxZoom: 19 }).setView(CONFIG.HOME, CONFIG.HOME_ZOOM);
+L.control.zoom({ position: "topright" }).addTo(map);
+
+// Two backgrounds: street map, or aerial photo with street names on top (shows lanes, curbs, medians).
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
+const BASEMAPS = {
+  map: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }),
+  photo: L.layerGroup([
+    L.tileLayer(ESRI + "World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 19, attribution: "Imagery &copy; Esri, Maxar, Earthstar Geographics" }),
+    L.tileLayer(ESRI + "Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19 })
+  ])
+};
+let basemap = lsGet("rk_basemap") === "photo" ? "photo" : "map";
+BASEMAPS[basemap].addTo(map);
+const BaseToggle = L.Control.extend({
+  options: { position: "topright" },
+  onAdd() {
+    const b = L.DomUtil.create("button", "basetoggle");
+    b.type = "button";
+    const label = () => { b.textContent = basemap === "map" ? "Satellite" : "Map"; b.setAttribute("aria-label", "Switch to " + b.textContent.toLowerCase() + " view"); };
+    label();
+    L.DomEvent.disableClickPropagation(b);
+    b.onclick = () => {
+      map.removeLayer(BASEMAPS[basemap]);
+      basemap = basemap === "map" ? "photo" : "map";
+      BASEMAPS[basemap].addTo(map);
+      lsSet("rk_basemap", basemap); label();
+    };
+    return b;
+  }
+});
+new BaseToggle().addTo(map);
+const layer = L.layerGroup().addTo(map);
+const gpsLayer = L.layerGroup().addTo(map);
+const pendingLayer = L.layerGroup().addTo(map);   // the pin being reported, kept visible above the form
+const PIN_ICON = L.divIcon({ className: "", iconSize: [34, 46], iconAnchor: [17, 45],
+  html: document.querySelector("#crosshair svg").outerHTML });
+
+let points = [];
+let view = "pins";
+let pending = null;   // {lat, lng} chosen for the report in progress
+let mode = "idle";
+let popupOpen = false;
+map.on("popupopen", () => popupOpen = true).on("popupclose", () => popupOpen = false);
+
+function filtered() {
+  const days = +$("range").value;
+  if (!days) return points;
+  const cutoff = Date.now() - days * 864e5;
+  return points.filter(p => new Date(p.seen_at).getTime() >= cutoff);
+}
+function hotspots(pts) {
+  const cells = new Map();
+  pts.forEach(p => {
+    const k = Math.floor(p.lat / CELL_LAT) + ":" + Math.floor(p.lng / CELL_LNG);
+    let c = cells.get(k);
+    if (!c) { c = { n: 0, lat: 0, lng: 0, night: 0, animals: {} }; cells.set(k, c); }
+    c.n++; c.lat += p.lat; c.lng += p.lng; if (isNight(p)) c.night++;
+    c.animals[p.animal] = (c.animals[p.animal] || 0) + 1;
+  });
+  return [...cells.values()].map(c => {
+    const top = Object.entries(c.animals).sort((a, b) => b[1] - a[1])[0][0];
+    return { n: c.n, lat: c.lat / c.n, lng: c.lng / c.n, night: c.night, top };
+  }).sort((a, b) => b.n - a.n);
+}
+function popupFor(p) {
+  const el = document.createElement("div"); el.className = "pop";
+  const b = document.createElement("b"); b.textContent = p.animal; el.appendChild(b);
+  const w = document.createElement("div"); w.textContent = fmtWhen(p.seen_at) + " · " + (isNight(p) ? "Night" : "Day"); el.appendChild(w);
+  if (p.note) { const n = document.createElement("div"); n.textContent = p.note; el.appendChild(n); }
+  if (!REMOTE || mine.has(p.id)) {
+    const d = document.createElement("button"); d.type = "button"; d.textContent = "Remove my pin";
+    d.onclick = async () => {
+      if (!d.dataset.armed) { d.dataset.armed = "1"; d.textContent = "Tap again to remove"; return; }
+      d.disabled = true;
+      try { await store.remove(p.id); points = points.filter(x => x.id !== p.id); map.closePopup(); render(); toast("Pin removed"); }
+      catch (e) { d.disabled = false; toast(e.message); }
+    };
+    el.appendChild(d);
+  }
+  return el;
+}
+function render() {
+  layer.clearLayers();
+  const pts = filtered();
+  $("legend").style.display = view === "pins" ? "flex" : "none";
+  if (view === "pins") {
+    pts.forEach(p => {
+      L.circleMarker([p.lat, p.lng], { radius: 8, color: "#fff", weight: 2, fillColor: isNight(p) ? "#3b3fa6" : "#e08a00", fillOpacity: .95 })
+        .bindPopup(() => popupFor(p)).addTo(layer);
+    });
+  } else {
+    const hs = hotspots(pts), max = hs.length ? hs[0].n : 1;
+    hs.forEach(h => {
+      L.circle([h.lat, h.lng], { radius: 55 + 12 * Math.min(h.n, 8), color: "#c8321e", weight: 1, fillColor: "#c8321e", fillOpacity: .25 + .5 * (h.n / max) }).addTo(layer);
+      L.marker([h.lat, h.lng], { interactive: false, icon: L.divIcon({ className: "hotlabel", html: String(h.n), iconSize: [26, 26] }) }).addTo(layer);
+    });
+  }
+  const night = pts.filter(isNight).length;
+  $("summary").textContent = pts.length
+    ? pts.length + (pts.length === 1 ? " report · " : " reports · ") + Math.round(100 * night / pts.length) + "% at night"
+    : "No reports yet";
+}
+async function refresh(quiet) {
+  try { points = await store.list(); render(); }
+  catch (e) { if (!quiet) toast(e.message); $("summary").textContent = "Offline"; }
+}
+
+/* ---------- reporting flow ---------- */
+function setMode(m) {   // idle | placing | form | stats
+  mode = m;
+  $("footIdle").style.display = mode === "idle" ? "flex" : "none";
+  $("footPlace").style.display = mode === "placing" ? "flex" : "none";
+  $("crosshair").style.display = mode === "placing" ? "block" : "none";
+  $("placehint").style.display = mode === "placing" ? "block" : "none";
+  $("formSheet").style.display = mode === "form" ? "block" : "none";
+  $("statsSheet").style.display = mode === "stats" ? "block" : "none";
+  if (m !== "placing") gpsLayer.clearLayers();
+  if (m !== "form") pendingLayer.clearLayers();
+  map.invalidateSize();
+}
+function locate() {
+  if (!navigator.geolocation) { toast("This browser can't share location. Move the map by hand."); return; }
+  $("gpsBtn").disabled = true; $("gpsBtn").textContent = "Locating…";
+  navigator.geolocation.getCurrentPosition(pos => {
+    $("gpsBtn").disabled = false; $("gpsBtn").textContent = "Use my location";
+    const ll = [pos.coords.latitude, pos.coords.longitude], acc = pos.coords.accuracy || 0;
+    gpsLayer.clearLayers();
+    L.circle(ll, { radius: acc, color: "#1f7a5a", weight: 1, fillOpacity: .12, interactive: false }).addTo(gpsLayer);
+    map.setView(ll, 18);
+    if (inBounds(ll[0], ll[1])) showMe(ll[0], ll[1]);
+    toast(acc > 30 ? "GPS is within about " + Math.round(acc) + " m. Nudge the map to the exact spot." : "Found you. Nudge the map if needed.");
+  }, err => {
+    $("gpsBtn").disabled = false; $("gpsBtn").textContent = "Use my location";
+    toast(err.code === 1 ? "Location is blocked. Allow it in your browser settings, or move the map by hand." : "Couldn't get your location. Move the map by hand.");
+  }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+}
+
+$("reportBtn").onclick = () => { setMode("placing"); if (map.getZoom() < 16) toast("Zoom in close, or tap Use my location"); };
+$("cancelPlace").onclick = () => setMode("idle");
+$("gpsBtn").onclick = locate;
+$("confirmPlace").onclick = () => {
+  const c = map.getCenter();
+  if (map.getZoom() < 16) { toast("Zoom in closer so the pin is exact"); return; }
+  if (!inBounds(c.lat, c.lng)) { toast("That spot is outside the area this map covers"); return; }
+  pending = { lat: +c.lat.toFixed(6), lng: +c.lng.toFixed(6) };
+  $("spotText").textContent = "Pin at " + pending.lat.toFixed(5) + ", " + pending.lng.toFixed(5);
+  const now = new Date();
+  $("seenAt").value = localInputValue(now); $("seenAt").max = localInputValue(now);
+  $("note").value = "";
+  setMode("form");
+  L.marker([pending.lat, pending.lng], { icon: PIN_ICON, interactive: false, keyboard: false }).addTo(pendingLayer);
+  map.panBy([0, $("formSheet").offsetHeight / 2], { animate: false });   // lift the pin above the sheet
+};
+$("formBack").onclick = () => { setMode("placing"); map.setView([pending.lat, pending.lng], map.getZoom(), { animate: false }); };
+$("formSheet").onsubmit = async ev => {
+  ev.preventDefault();
+  const picked = document.querySelector('input[name="animal"]:checked');
+  if (!picked) { toast("Pick an animal"); return; }
+  const when = new Date($("seenAt").value);
+  if (isNaN(when) || when.getTime() > Date.now() + 6e5) { toast("Check the date and time"); return; }
+  const rec = { lat: pending.lat, lng: pending.lng, animal: picked.value, seen_at: when.toISOString(), note: $("note").value.trim() || null, device_hash: deviceHash };
+  $("saveBtn").disabled = true;
+  try {
+    const row = await store.add(rec);
+    points.unshift(row); picked.checked = false; setMode("idle"); render();
+    toast("Saved. Thanks for reporting.");
+  } catch (e) { toast(e.message + ". Check your connection and try again."); }
+  $("saveBtn").disabled = false;
+};
+
+/* ---------- top spots + export ---------- */
+$("openStats").onclick = () => {
+  const pts = filtered(), hs = hotspots(pts).filter(h => h.n >= 2).slice(0, 5);
+  const ul = $("hotlist"); ul.textContent = "";
+  $("statsNote").textContent = hs.length
+    ? "Places with the most reports in " + $("range").selectedOptions[0].textContent.toLowerCase() + ", grouped in blocks of about 90 m."
+    : "No spot has two or more reports yet. Keep pinning and patterns will show up here.";
+  hs.forEach(h => {
+    const li = document.createElement("li");
+    const n = document.createElement("span"); n.className = "n"; n.textContent = h.n;
+    const w = document.createElement("span"); w.className = "what";
+    w.textContent = "Mostly " + h.top.toLowerCase();
+    const s = document.createElement("small"); s.textContent = h.night + " of " + h.n + " at night · " + h.lat.toFixed(5) + ", " + h.lng.toFixed(5); w.appendChild(s);
+    const b = document.createElement("button"); b.type = "button"; b.textContent = "Show";
+    b.onclick = () => { setView("hot"); setMode("idle"); map.setView([h.lat, h.lng], 17); };
+    li.append(n, w, b); ul.appendChild(li);
+  });
+  setMode("stats");
+};
+$("statsClose").onclick = () => setMode("idle");
+$("csvBtn").onclick = () => {
+  const pts = filtered();
+  if (!pts.length) { toast("Nothing to export yet"); return; }
+  const q = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  const rows = ["seen_texas_time,seen_utc,animal,day_or_night,latitude,longitude,note"].concat(
+    pts.map(p => [q(CSV_TIME.format(new Date(p.seen_at)).replace(", ", " ")), q(p.seen_at), q(p.animal), isNight(p) ? "night" : "day", p.lat, p.lng, q(p.note)].join(",")));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv" }));
+  a.download = "roadkill-reports.csv"; document.body.appendChild(a); a.click(); a.remove();
+};
+
+/* ---------- view + filters ---------- */
+function setView(v) {
+  view = v === "hot" ? "hot" : "pins";
+  $("viewPins").setAttribute("aria-pressed", view === "pins");
+  $("viewHot").setAttribute("aria-pressed", view === "hot");
+  render();
+}
+$("viewPins").onclick = () => setView("pins");
+$("viewHot").onclick = () => setView("hot");
+$("range").onchange = render;
+
+/* ---------- open where the user is ---------- */
+const meLayer = L.layerGroup().addTo(map);
+let userMoved = false;
+map.on("dragstart", () => userMoved = true);
+function showMe(lat, lng) {
+  meLayer.clearLayers();
+  L.circleMarker([lat, lng], { radius: 15, stroke: false, fillColor: "#1f7a5a", fillOpacity: .22, interactive: false }).addTo(meLayer);
+  L.circleMarker([lat, lng], { radius: 7, color: "#fff", weight: 3, fillColor: "#1f7a5a", fillOpacity: 1, interactive: false }).addTo(meLayer);
+  $("legendYou").hidden = false;
+}
+function openAtUser() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(pos => {
+    const lat = pos.coords.latitude, lng = pos.coords.longitude;
+    if (!inBounds(lat, lng)) return;   // away from the covered area: keep the default view
+    showMe(lat, lng);
+    // Don't yank the map if the person already moved it or started a report.
+    if (!userMoved && mode === "idle") map.setView([lat, lng], CONFIG.USER_ZOOM);
+  }, () => {}, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+}
+
+/* ---------- start ---------- */
+ANIMALS.forEach((a, i) => {
+  const l = document.createElement("label");
+  const inp = document.createElement("input"); inp.type = "radio"; inp.name = "animal"; inp.value = a; inp.id = "animal-" + i;
+  const s = document.createElement("span"); s.textContent = a;
+  l.append(inp, s); $("animalChips").appendChild(l);
+});
+if (!REMOTE) {
+  $("banner").style.display = "block";
+  $("banner").textContent = "Try-out mode: pins are saved on this phone only. Connect the shared database (see README) so neighbors see each other's pins.";
+}
+(async () => {
+  openAtUser();
+  deviceHash = await sha256hex(deviceKey);
+  await refresh();
+  if (REMOTE) {
+    // Pick up neighbors' new pins, but never while someone is reading a pin or adding one.
+    const quietRefresh = () => { if (!document.hidden && mode === "idle" && !popupOpen) refresh(true); };
+    setInterval(quietRefresh, 60000);
+    document.addEventListener("visibilitychange", quietRefresh);
+  }
+})();
+</script>
+</body>
+</html>
