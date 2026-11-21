@@ -45,17 +45,17 @@
   #map { position: absolute; inset: 0; }
 
   .basetoggle { background: #fff; background-clip: padding-box; border: 2px solid rgba(0,0,0,.2); border-radius: 6px; padding: 7px 10px; font-size: 13px; font-weight: 650; color: var(--ink); }
-  .whylink { background: transparent; border: 1px solid rgba(255,255,255,.4); color: #fff; border-radius: 999px; padding: 2px 10px; font-size: 12.5px; margin-left: 8px; vertical-align: 2px; }
+  .whylink { background: #ffd23f; border: 0; color: #16302b; font-weight: 700; border-radius: 999px; padding: 3px 11px; font-size: 13px; margin-left: 8px; vertical-align: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
   #whyBanner { position: absolute; top: 10px; left: 10px; width: calc(100% - 68px); z-index: 650; display: flex; align-items: center; gap: 10px;
     background: var(--ink); color: #fff; border: 0; border-radius: 12px; padding: 10px 12px; font-size: 13.5px; line-height: 1.3; text-align: left;
     box-shadow: 0 3px 12px rgba(0,0,0,.3); opacity: 0; transform: translateY(-10px); transition: opacity .35s, transform .35s; }
   #whyBanner.show { opacity: 1; transform: none; }
-  #whyBanner b { margin-left: auto; white-space: nowrap; color: #9fe0c4; }
+  #whyBanner b { margin-left: auto; white-space: nowrap; background: #ffd23f; color: #16302b; border-radius: 999px; padding: 3px 10px; font-size: 13px; }
   .why { margin: 0; padding: 0; list-style: none; counter-reset: step; }
-  .why li { position: relative; padding: 0 0 12px 38px; font-size: 15px; line-height: 1.4; counter-increment: step; }
-  .why li::before { content: counter(step); position: absolute; left: 0; top: -1px; width: 26px; height: 26px; border-radius: 50%; background: var(--go); color: #fff; font-weight: 700; font-size: 14px; display: grid; place-items: center; }
-  .fixes { margin: 4px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.45; color: var(--ink); }
-  .fixes li { margin-bottom: 4px; }
+  .why > li { position: relative; padding: 0 0 12px 38px; font-size: 15px; line-height: 1.4; counter-increment: step; }
+  .why > li::before { content: counter(step); position: absolute; left: 0; top: -1px; width: 26px; height: 26px; border-radius: 50%; background: var(--go); color: #fff; font-weight: 700; font-size: 14px; display: grid; place-items: center; }
+  .fixes { margin: 6px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.35; color: var(--ink); list-style: disc; }
+  .fixes li { margin-bottom: 5px; padding: 0; }
   .legend { position: absolute; left: 10px; bottom: 24px; z-index: 500; background: rgba(255,255,255,.92); border-radius: 8px; padding: 6px 9px; font-size: 12px; display: flex; gap: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
 
@@ -178,11 +178,12 @@
     <h2>Why this map?</h2>
     <ol class="why">
       <li><b>Pin it.</b> When you see a dead animal on the road, drop a pin right where it is.</li>
-      <li><b>Find the hotspots.</b> Most deaths happen at just 2 or 3 spots. The map shows us where.</li>
+      <li><b>Find the hotspots.</b> Deaths keep happening at the same spots. The map shows us where.</li>
       <li><b>Fix those spots.</b> We take the map to our HOA and the cities of Southlake and Grapevine, and ask for fixes like:
         <ul class="fixes">
           <li>Small tunnels under the road, with low fences that guide animals into them</li>
-          <li>Roadside posts that flash and beep when headlights come, so animals wait</li>
+          <li>Roadside posts that, only when a car comes, give a quick flash and a high-pitched sound animals notice but people can't hear</li>
+          <li>Small-animal crossing signs so drivers slow down and watch out</li>
           <li>Slower traffic: speed humps and lower limits</li>
         </ul>
       </li>
@@ -350,7 +351,7 @@ const BASEMAPS = {
     L.tileLayer(ESRI + "Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19 })
   ])
 };
-let basemap = lsGet("rk_basemap") === "photo" ? "photo" : "map";
+let basemap = "map";   // always open on the street map; Satellite is one tap away
 BASEMAPS[basemap].addTo(map);
 const BaseToggle = L.Control.extend({
   options: { position: "topright" },
@@ -364,7 +365,7 @@ const BaseToggle = L.Control.extend({
       map.removeLayer(BASEMAPS[basemap]);
       basemap = basemap === "map" ? "photo" : "map";
       BASEMAPS[basemap].addTo(map);
-      lsSet("rk_basemap", basemap); label();
+      label();
     };
     return b;
   }
