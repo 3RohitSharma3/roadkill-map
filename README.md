@@ -1,5 +1,7 @@
 # Roadkill Map: Southlake & Grapevine
 
+**Live at https://3rohitsharma3.github.io/roadkill-map/**
+
 A phone-friendly web app where neighbors drop a pin on the exact spot they find a dead animal. Over a few weeks the pins show which two or three spots cause most of the deaths, which is the evidence a city or HOA needs.
 
 ## What it does
@@ -60,4 +62,4 @@ Share the resulting link with neighbors. On a phone, "Add to Home Screen" makes 
 - **Animal list**: edit `ANIMALS` in `index.html`.
 - **Map tiles** come from OpenStreetMap's free tile server, and satellite photos from Esri's free World Imagery (credit is shown on the map). Both are fine for neighborhood-scale, non-commercial use. A very popular app should switch to a paid tile and imagery provider.
 - **Free Supabase projects pause after about a week with no visits.** If nobody opens the map for a week, sign in to Supabase and click Restore. Regular use keeps it awake.
-- **Tested so far**: try-out mode in a phone-sized browser, and `setup.sql` plus live mode against a local copy of the same database software Supabase runs (adding, reloading, removing, 2,500 reports, lost connection, and 15 checks that visitors can't edit, delete or see which phone added a pin). Also tested against the live Supabase project (same checks, plus adding, reloading and removing a pin in the app). Not yet tested on a real phone.
+- **Tested so far**: try-out mode in a phone-sized browser, and `setup.sql` plus live mode against a local copy of the same database software Supabase runs (adding, reloading, removing, 2,500 reports, lost connection, and 15 checks that visitors can't edit, delete or see which phone added a pin). Also tested against the live Supabase project and the published site (same checks, plus adding, reloading and removing a pin). Not yet tested on a real phone.
