@@ -1,6 +1,6 @@
 # Roadkill Map: Southlake & Grapevine
 
-**Live at https://3rohitsharma3.github.io/roadkill-map/**
+**Live at https://savelittlelife.org**
 
 A phone-friendly web app where neighbors drop a pin on the exact spot they find a dead animal. Over a few weeks the pins show which two or three spots cause most of the deaths, which is the evidence a city or HOA needs.
 
@@ -52,7 +52,7 @@ The app must be served over `https` for phone GPS to work. Either of these is fr
 - **Netlify Drop**: go to https://app.netlify.com/drop and drag in the folder containing `index.html`.
 - **GitHub Pages**: push the folder to a repository and turn on Pages for it.
 
-Share the resulting link with neighbors. On a phone, "Add to Home Screen" makes it open like an app.
+Share the resulting link with neighbors. This project uses the custom domain savelittlelife.org (registered at Squarespace Domains; four GitHub Pages A records for `@` and a `www` CNAME to `3rohitsharma3.github.io`), set in the repo's Pages settings, which also creates the `CNAME` file. On a phone, "Add to Home Screen" makes it open like an app.
 
 ### 4. Optional: Street View inside the app (free)
 
@@ -61,7 +61,7 @@ Google's Maps Embed API shows Street View inside the app at no charge, with no u
 1. Go to https://console.cloud.google.com, create a project (for example `roadkill-map`), and add a billing account when asked.
 2. Open **APIs & Services → Library**, search for **Maps Embed API**, and click **Enable**. Don't enable any other Maps API.
 3. Open **APIs & Services → Credentials → Create credentials → API key**. Then edit the key:
-   - **Application restrictions:** Websites. Add `https://3rohitsharma3.github.io/*` (and `http://localhost:8791/*` for testing on your computer).
+   - **Application restrictions:** Websites. Add `https://savelittlelife.org/*`, `https://www.savelittlelife.org/*`, `https://3rohitsharma3.github.io/*`, and `http://localhost:8791/*` for testing on your computer.
    - **API restrictions:** Restrict key → **Maps Embed API** only.
 4. Optional peace of mind: in **Billing → Budgets & alerts**, set a $1 budget with email alerts.
 5. Paste the key into `GOOGLE_EMBED_KEY` in `index.html`. This key is meant to be visible in the page; the restrictions above stop others from using it.
