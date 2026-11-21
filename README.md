@@ -7,7 +7,7 @@ A phone-friendly web app where neighbors drop a pin on the exact spot they find 
 ## What it does
 
 - Opens at street level where you are (green dot) when you allow location. If you say no, or you're outside the DFW area, it opens on Kimball Ave & Dove Rd
-- **Map / Satellite** switch (top right): street map, or aerial photos with street names that show each lane, curb and median. The map always opens on the street map.
+- **Map / Satellite** switch (top right): street map, or aerial photos with street names that show each lane, curb and median. The map always opens in satellite view.
 - **Report an animal**: tap "Use my location" or slide the map under the pin, then choose the animal, the time, and an optional note
 - **Pins view**: every report, colored by day or night
 - **Hotspots view**: reports grouped into blocks of about 90 m, with a count on each

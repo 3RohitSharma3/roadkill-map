@@ -239,7 +239,7 @@ const CONFIG = {
 };
 
 // Stamped automatically on every commit (see .git/hooks/pre-commit). Used to notice a newer version.
-const APP_VERSION = "2026-11-21T20:47:07Z";
+const APP_VERSION = "2026-11-21T20:54:41Z";
 const ANIMALS = ["Squirrel", "Opossum", "Raccoon", "Rabbit", "Armadillo", "Skunk", "Bird", "Turtle", "Snake", "Cat", "Other"];
 const CELL_LAT = 0.0008, CELL_LNG = 0.00095;   // hotspot grid, about 90 m squares
 const TABLE = "sightings";
@@ -352,7 +352,7 @@ const BASEMAPS = {
     L.tileLayer(ESRI + "Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19 })
   ])
 };
-let basemap = "map";   // always open on the street map; Satellite is one tap away
+let basemap = "photo";   // always open on satellite; the street map is one tap away
 BASEMAPS[basemap].addTo(map);
 const BaseToggle = L.Control.extend({
   options: { position: "topright" },
