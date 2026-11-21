@@ -83,6 +83,10 @@
   .hotlabel { color: #fff; font-weight: 700; font-size: 13px; text-align: center; line-height: 26px; text-shadow: 0 1px 2px rgba(0,0,0,.5); font-variant-numeric: tabular-nums; }
   .pop b { font-size: 15px; }
   .pop div { margin-top: 3px; font-size: 13px; }
+  .pop .acts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pop button.sv { color: var(--ink); }
+  #hotlist .btns { display: flex; gap: 6px; }
+  #svFrame { width: 100%; height: min(40vh, 380px); border: 0; border-radius: 10px; background: #ddd; display: block; }
   .pop button { margin-top: 8px; border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 6px 10px; font-size: 13px; color: var(--hot); }
 
   #toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 2000; background: rgba(22,48,43,.95); color: #fff; padding: 10px 14px; border-radius: 10px; font-size: 14px; max-width: 86%; text-align: center; display: none; }
@@ -153,6 +157,17 @@
     </div>
   </div>
 
+  <!-- Street View (shown when a Google Maps Embed key is set) -->
+  <div class="sheet" id="svSheet">
+    <h2>Street View</h2>
+    <iframe id="svFrame" title="Google Street View of this spot" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+    <div class="spot" style="margin-top:8px">Drag to look around. Google's photos may be months or years old.</div>
+    <div class="row">
+      <button type="button" class="btn alt" id="svBack">Back</button>
+      <button type="button" class="btn alt" id="svGmaps" style="flex:1">Open in Google Maps</button>
+    </div>
+  </div>
+
   <div id="toast" role="status"></div>
 </div>
 
@@ -174,6 +189,9 @@
 const CONFIG = {
   SUPABASE_URL: "https://nshwzbfshsftuphxlcuz.supabase.co",   // e.g. "https://abcdxyz.supabase.co"
   SUPABASE_KEY: "sb_publishable_Ml3kffdWFaCCsQ8E4u1K7w_sC-UCB57",   // the public "publishable" (or "anon") key, never the secret one
+  // Optional Google "Maps Embed API" key (free, unlimited). With it, Street View opens inside the app.
+  // Without it, the Street View button opens the spot in Google Maps instead.
+  GOOGLE_EMBED_KEY: "",
   // The map opens on the user's own location when they allow it and are inside BOUNDS.
   // Otherwise it opens here: Kimball Ave & Dove Rd, street level.
   HOME: [32.9606, -97.1166],
@@ -353,6 +371,10 @@ function popupFor(p) {
   const b = document.createElement("b"); b.textContent = p.animal; el.appendChild(b);
   const w = document.createElement("div"); w.textContent = fmtWhen(p.seen_at) + " · " + (isNight(p) ? "Night" : "Day"); el.appendChild(w);
   if (p.note) { const n = document.createElement("div"); n.textContent = p.note; el.appendChild(n); }
+  const acts = document.createElement("div"); acts.className = "acts"; el.appendChild(acts);
+  const sv = document.createElement("button"); sv.type = "button"; sv.className = "sv"; sv.textContent = "Street View";
+  sv.onclick = () => { map.closePopup(); streetView(p.lat, p.lng, "idle"); };
+  acts.appendChild(sv);
   if (!REMOTE || mine.has(p.id)) {
     const d = document.createElement("button"); d.type = "button"; d.textContent = "Remove my pin";
     d.onclick = async () => {
@@ -361,7 +383,7 @@ function popupFor(p) {
       try { await store.remove(p.id); points = points.filter(x => x.id !== p.id); map.closePopup(); render(); toast("Pin removed"); }
       catch (e) { d.disabled = false; toast(e.message); }
     };
-    el.appendChild(d);
+    acts.appendChild(d);
   }
   return el;
 }
@@ -392,7 +414,7 @@ async function refresh(quiet) {
 }
 
 /* ---------- reporting flow ---------- */
-function setMode(m) {   // idle | placing | form | stats
+function setMode(m) {   // idle | placing | form | stats | sv
   mode = m;
   $("footIdle").style.display = mode === "idle" ? "flex" : "none";
   $("footPlace").style.display = mode === "placing" ? "flex" : "none";
@@ -400,6 +422,8 @@ function setMode(m) {   // idle | placing | form | stats
   $("placehint").style.display = mode === "placing" ? "block" : "none";
   $("formSheet").style.display = mode === "form" ? "block" : "none";
   $("statsSheet").style.display = mode === "stats" ? "block" : "none";
+  $("svSheet").style.display = mode === "sv" ? "block" : "none";
+  if (m !== "sv") $("svFrame").removeAttribute("src");   // stop the panorama when the sheet closes
   if (m !== "placing") gpsLayer.clearLayers();
   if (m !== "form") pendingLayer.clearLayers();
   map.invalidateSize();
@@ -469,11 +493,29 @@ $("openStats").onclick = () => {
     const s = document.createElement("small"); s.textContent = h.night + " of " + h.n + " at night · " + h.lat.toFixed(5) + ", " + h.lng.toFixed(5); w.appendChild(s);
     const b = document.createElement("button"); b.type = "button"; b.textContent = "Show";
     b.onclick = () => { setView("hot"); setMode("idle"); map.setView([h.lat, h.lng], 17); };
-    li.append(n, w, b); ul.appendChild(li);
+    const v = document.createElement("button"); v.type = "button"; v.textContent = "Street View";
+    v.onclick = () => streetView(h.lat, h.lng, "stats");
+    const btns = document.createElement("span"); btns.className = "btns"; btns.append(b, v);
+    li.append(n, w, btns); ul.appendChild(li);
   });
   setMode("stats");
 };
 $("statsClose").onclick = () => setMode("idle");
+
+/* ---------- Google Street View ---------- */
+// The free Maps Embed API shows it inside the app; with no key, open Google Maps (also free, no key).
+let svBackTo = "idle", svAt = null;
+function gmapsPano(lat, lng) { return "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=" + lat + "," + lng; }
+function streetView(lat, lng, backTo) {
+  lat = +(+lat).toFixed(6); lng = +(+lng).toFixed(6);
+  if (!CONFIG.GOOGLE_EMBED_KEY) { window.open(gmapsPano(lat, lng), "_blank", "noopener"); return; }
+  svBackTo = backTo; svAt = [lat, lng];
+  $("svFrame").src = "https://www.google.com/maps/embed/v1/streetview?key=" + encodeURIComponent(CONFIG.GOOGLE_EMBED_KEY)
+    + "&location=" + lat + "," + lng + "&fov=90";
+  setMode("sv");
+}
+$("svBack").onclick = () => setMode(svBackTo);
+$("svGmaps").onclick = () => { if (svAt) window.open(gmapsPano(svAt[0], svAt[1]), "_blank", "noopener"); };
 $("csvBtn").onclick = () => {
   const pts = filtered();
   if (!pts.length) { toast("Nothing to export yet"); return; }

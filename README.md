@@ -12,6 +12,7 @@ A phone-friendly web app where neighbors drop a pin on the exact spot they find 
 - **Pins view**: every report, colored by day or night
 - **Hotspots view**: reports grouped into blocks of about 90 m, with a count on each
 - **Top spots**: the five worst locations, plus a CSV download to send to the city
+- **Street View** button on every pin and in Top spots: Google's drive-by photos of that exact spot. Without a Google key it opens Google Maps; with a free key it opens inside the app (see below)
 - Each phone can remove its own pins (tap the pin, then tap Remove twice)
 - Nobody can tell which pins came from the same phone
 
@@ -52,6 +53,18 @@ The app must be served over `https` for phone GPS to work. Either of these is fr
 - **GitHub Pages**: push the folder to a repository and turn on Pages for it.
 
 Share the resulting link with neighbors. On a phone, "Add to Home Screen" makes it open like an app.
+
+### 4. Optional: Street View inside the app (free)
+
+Google's Maps Embed API shows Street View inside the app at no charge, with no usage limit, but Google requires an account with billing turned on.
+
+1. Go to https://console.cloud.google.com, create a project (for example `roadkill-map`), and add a billing account when asked.
+2. Open **APIs & Services → Library**, search for **Maps Embed API**, and click **Enable**. Don't enable any other Maps API.
+3. Open **APIs & Services → Credentials → Create credentials → API key**. Then edit the key:
+   - **Application restrictions:** Websites. Add `https://3rohitsharma3.github.io/*` (and `http://localhost:8791/*` for testing on your computer).
+   - **API restrictions:** Restrict key → **Maps Embed API** only.
+4. Optional peace of mind: in **Billing → Budgets & alerts**, set a $1 budget with email alerts.
+5. Paste the key into `GOOGLE_EMBED_KEY` in `index.html`. This key is meant to be visible in the page; the restrictions above stop others from using it.
 
 ## Good to know
 
